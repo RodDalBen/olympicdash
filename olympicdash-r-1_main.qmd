@@ -1,0 +1,413 @@
+---
+title: "Olympic Games"
+format: 
+  dashboard:
+    theme: 
+      light: [sketchy, style/olympicdash.scss]
+      dark: [darkly, style/olympicdash.scss]
+    orientation: columns
+    nav-buttons: 
+      - icon: github
+        href: https://github.com/posit-conf-2024/olympicdash
+        aria-label: GitHub
+logo: images/olympics-logo.svg
+---
+
+# Notes 🗒️
+
+## Notes
+
+### Row - Personal notes
+
+**Notes**
+
+[Speaker: Mine Cetinkays-Rundel](https://mine-cr.com/)
+
+[GitHub - Posit Conf workshops](https://github.com/posit-conf-2024)
+
+[GitHub - Quarto dashboards](https://github.com/posit-conf-2024/olympicdash)
+
+[Slide](https://posit-conf-2024.github.io/quarto-dashboards/)
+
+All levels of info interact in the `quarto dashboard` universe:
+
+  1. yaml header;
+  2. Commands such as: `# {.sidebar}`, `{.tabset}`, `{.scroll}`
+  3. Levels of heading in the document:   
+    i. `#` gives you a page and header button  
+    ii. `##` won't give you the button, but the same level of information:
+      a. Rows first: `##` = rows, `###` = columns
+      b. Vice-versa
+    
+  4. Special characters in code chunks (e.g., `#|` + `label`, `output`, `layout-ncol`).
+  
+  5. Some things are set to `FALSE` automatically (e.g., `echo`, `warning`)
+  
+  6. Set `warning` to `TRUE` globally is a good practice to ensure that the analyses are coming out as they should. 
+  
+  7. We can't have `spaces` into the options, for example: `{height=10%}`, correct; vs. `{height = 10%}` wrong.  
+  
+*Cards* are the key structures in Quarto dashboards. First get your card for free (default behavior), but you should create/manipulated them manually for greater control. The command for manually creating the card is `:::{.card title: "text"}` and closing with `:::`. 
+
+*Cell* options (native to Quarto) is a good way to create cards and to get automatic things done with `R` (or any language) code. For instance, using the `cat()` function to create an interactive title. 
+
+*Value boxes* uses bootstrap icons (https://icons.getbootstrap.com), can be set to any color (there are default colors)
+
+*Markdown text* keep it minimally, but you could add it to cell cards
+
+*Add comments* to the script with standard `html` code `<!-- comment here -->`
+
+*Repeat code* In the workshop, the instructor copied and pasted the content, but is there a way to avoid it? 
+
+*Interaction* most of the time comes with a `server` element that resembles `Shiny apps`. But it is possible to include Shiny components (e.g., slide bar for filtering). Later of complexity: `Quarto dashboard > Quarto w/ Shiny components > Shiny dashboard`. When the `row/column` mentality is limited for a given purpose and interactivity is **key**, then Shiny App is a better option than Quarto dash. 
+
+*Theming and styling* could be done with `css`, but `Quarto` can rely on [bootstrap themes](https://bootswatch.com/) that are tested and developed by a web designer. We will use the `theme` argument at the `yaml` header; you can add subthemes `dark` and `light`. You can add your own `.css` theme file. See the document `dashboard-r.qmd` for slides on fonts, background colors etc.
+
+*Check parent <<->> child* structure as one way to automate generation of script and quarto files.
+
+*Host shiny* there are several options for deploying dashboards with shiny/interactivy components, like [ShinyLive](https://posit-dev.github.io/r-shinylive/)
+
+
+<!-- html comment: This code wont run  -->
+
+```{r}
+#| label: load-packages
+#| message: false
+library(tidyverse)
+library(gt)
+library(scales)
+```
+
+```{r}
+#| label: load-data
+#| message: false
+olympics_full <- read_csv("data/olympics.csv")
+```
+
+```{r}
+#| label: prep-data
+olympics <- 
+  olympics_full |>
+  filter(
+    #season == "Summer",
+    !is.na(medal)
+  ) |>
+  separate_wider_delim(cols = team, names = c("team", "suffix"), delim = "-", too_many = "merge", too_few = "align_start") |>
+  select(-suffix) |>
+  mutate(medal = fct_relevel(medal, "Bronze", "Silver", "Gold"))
+```
+
+# Summer Olympics 🔥
+
+## Column - Medals by sport {width=65%}
+
+### Row - Medals by sport {height=60%}
+
+```{r}
+#| title: "Medals by sport"
+#| fig-asp: 0.4
+olympics |>
+  filter(season == "Summer") |> 
+  mutate(
+    sport = fct_lump_n(sport, n = 15),
+    sport = fct_infreq(sport),
+    sport = fct_rev(sport),
+    sport = fct_relevel(sport, "Other", after = 0)
+  ) |>
+  ggplot(aes(y = sport, fill = medal)) +
+  geom_bar() +
+  scale_fill_manual(values = c("Gold" = "#d4af37", 
+                               "Silver" = "#c0c0c0",
+                               "Bronze" = "#cd7f32")) +
+  scale_x_continuous(breaks = seq(0, 7000, 1000),
+                     labels = label_number(big.mark = ",")) +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  labs(
+    x = NULL,
+    y = NULL,
+    fill = "Medal"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.8, 0.2),
+    legend.direction = "horizontal",
+    legend.background = element_rect(fill = "white", color = "gray")
+  )
+```
+
+### Row - Medals by year {height=40%}
+
+::: {.card title="Medals by year"}
+Due to World War II, no Olympic games were held in 1940 and 1944.
+
+```{r}
+#| title: "Medals by year"
+#| fig-width: 11
+#| fig-height: 2
+
+olympics |>
+  filter(season == "Summer") |>  
+  count(year, medal) |>
+  ggplot(aes(x = year, y = n, color = medal)) +
+  geom_point(size = 0.5) +
+  geom_line() +
+  scale_color_manual(values = c("Gold" = "#d4af37", 
+                               "Silver" = "#c0c0c0",
+                               "Bronze" = "#cd7f32")) +
+  
+  guides(color = guide_legend(reverse = TRUE)) +
+  scale_x_continuous(breaks = seq(1896, 2020, 8)) +
+  labs(
+    x = "Year",
+    y = NULL,
+    color = "Medal"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.8, 0.2),
+    legend.direction = "horizontal",
+    legend.background = element_rect(fill = "white", color = "gray")
+  )
+```
+
+:::
+
+## Column - Medals by country {width=30%}
+
+### Row - Value boxes {height=25%}
+
+```{r}
+#| label: country with most Gold, Silver, and Bronze medals - Summer
+
+summer_stats <- 
+  olympics |> 
+  filter(season == "Summer") |> 
+  group_by(medal) |> 
+  # will sort the team w/ most cases on top
+  count(team, sort = T) |> 
+  slice_head(n = 1)
+```
+
+::: {.valuebox icon="award-fill" color="#d4af37"}
+Most golds: 
+
+`{r} summer_stats[3, 3]`
+
+`{r} summer_stats[3, 2]`
+:::
+
+::: {.valuebox icon="award-fill" color="#c0c0c0"}
+Most silvers: 
+
+`{r} summer_stats[2, 3]`
+
+`{r} summer_stats[2, 2]`
+:::
+
+::: {.valuebox icon="award-fill" color="#cd7f32"}
+Most bronzes: 
+
+`{r} summer_stats[1, 3]`
+
+`{r} summer_stats[1, 2]`
+:::
+
+### Row - tabset {height=70% .tabset}
+
+::: {.card title="Top 30 total medals"} 
+Teams sorted in descending order of total medals.
+
+```{r}
+#| title: "Medals by country"
+olympics |>
+  filter(season == "Summer") |>  
+  count(team, medal) |>
+  pivot_wider(names_from = medal, values_from = n, values_fill = 0) |>
+  mutate(total = Bronze + Gold + Silver) |>
+  arrange(desc(total), team) |>
+  slice_head(n = 30) |>
+  select(Team = team, Gold, Silver, Bronze) |>
+  gt() |>
+  cols_align(align = "left", columns = Team) |>
+  data_color(
+    method = "numeric",
+    palette = "nord::aurora"
+  )
+```
+:::
+
+::: {.card title="Bottom 30 total medals"} 
+Teams sorted in descending order of total medals.
+
+```{r}
+#| title: "Medals by country"
+olympics |>
+  filter(season == "Summer") |>  
+  count(team, medal) |>
+  pivot_wider(names_from = medal, values_from = n, values_fill = 0) |>
+  mutate(total = Bronze + Gold + Silver) |>
+  arrange(desc(total), team) |>
+  slice_tail(n = 30) |>
+  select(Team = team, Gold, Silver, Bronze) |>
+  gt() |>
+  cols_align(align = "left", columns = Team) |>
+  data_color(
+    method = "numeric",
+    palette = "nord::aurora"
+  )
+```
+:::
+
+
+# Winter Olympics ❄️
+
+## Column - Medals by sport {width=65%}
+
+### Row - Medals by sport {height=60%}
+
+```{r}
+#| title: "Medals by sport"
+olympics |>
+  filter(season == "Winter") |> 
+  mutate(
+    sport = fct_lump_n(sport, n = 15),
+    sport = fct_infreq(sport),
+    sport = fct_rev(sport),
+    sport = fct_relevel(sport, "Other", after = 0)
+  ) |>
+  ggplot(aes(y = sport, fill = medal)) +
+  geom_bar() +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  labs(
+    x = NULL,
+    y = NULL,
+    fill = "Medal"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.9, 0.2),
+    legend.direction = "horizontal",
+    legend.background = element_rect(fill = "white", color = "gray")
+  )
+```
+
+### Row - Medals by year {height=40%}
+
+::: {.card title="Medals by year"}
+Due to World War II, no Olympic games were held in 1940 and 1944.
+
+```{r}
+#| title: "Medals by year"
+olympics |>
+  filter(season == "Winter") |>  
+  count(year, medal) |>
+  ggplot(aes(x = year, y = n, color = medal)) +
+  geom_point(size = 0.5) +
+  geom_line() +
+  guides(color = guide_legend(reverse = TRUE)) +
+  scale_x_continuous(breaks = seq(1896, 2020, 8)) +
+  labs(
+    x = "Year",
+    y = NULL,
+    color = "Medal"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.9, 0.2),
+    legend.direction = "horizontal",
+    legend.background = element_rect(fill = "white", color = "gray")
+  )
+```
+
+:::
+
+## Column - Medals by country {width=30%}
+
+### Row - Value boxes {height=25%}
+
+```{r}
+#| label: Country with most Gold, Silver, and Bronze medals - Winter
+
+winter_stats <- 
+  olympics |> 
+  filter(season == "Winter") |> 
+  group_by(medal) |> 
+  # will sort the team w/ most cases on top
+  count(team, sort = T) |> 
+  slice_head(n = 1)
+```
+
+::: {.valuebox icon="award-fill" color="#d4af37"}
+Most golds: 
+
+`{r} winter_stats[3, 3]`
+
+`{r} winter_stats[3, 2]`
+:::
+
+::: {.valuebox icon="award-fill" color="#c0c0c0"}
+Most silvers: 
+
+`{r} winter_stats[2, 3]`
+
+`{r} winter_stats[2, 2]`
+:::
+
+::: {.valuebox icon="award-fill" color="#cd7f32"}
+Most bronzes: 
+
+`{r} winter_stats[1, 3]`
+
+`{r} winter_stats[1, 2]`
+:::
+
+### Row - tabset {height=70% .tabset}
+
+::: {.card title="Top 30 total medals"} 
+Teams sorted in descending order of total medals.
+
+```{r}
+#| title: "Medals by country"
+olympics |>
+  filter(season == "Winter") |>  
+  count(team, medal) |>
+  pivot_wider(names_from = medal, values_from = n, values_fill = 0) |>
+  mutate(total = Bronze + Gold + Silver) |>
+  arrange(desc(total), team) |>
+  slice_head(n = 30) |>
+  select(Team = team, Gold, Silver, Bronze) |>
+  gt() |>
+  cols_align(align = "left", columns = Team) |>
+  data_color(
+    method = "numeric",
+    palette = "nord::aurora"
+  )
+```
+:::
+
+::: {.card title="Bottom 30 total medals"} 
+Teams sorted in descending order of total medals.
+
+```{r}
+#| title: "Medals by country"
+olympics |>
+  filter(season == "Winter") |>  
+  count(team, medal) |>
+  pivot_wider(names_from = medal, values_from = n, values_fill = 0) |>
+  mutate(total = Bronze + Gold + Silver) |>
+  arrange(desc(total), team) |>
+  slice_tail(n = 30) |>
+  select(Team = team, Gold, Silver, Bronze) |>
+  gt() |>
+  cols_align(align = "left", columns = Team) |>
+  data_color(
+    method = "numeric",
+    palette = "nord::aurora"
+  )
+```
+:::
+
